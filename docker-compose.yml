@@ -1,0 +1,61 @@
+version: "3.8"
+
+volumes:
+  postgres_data:
+
+services:
+  postgres:
+    image: postgres:18.1-alpine3.22
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U service -d master"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  init-db: # единоразовая миграция - мб не стоит ее пихать через контейнер, а можно раскоментить строчку в сервисе выше
+    image: postgres:18.1-alpine3.22
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: >
+      sh -c "
+        PGPASSWORD=$$POSTGRES_PASSWORD psql -h postgres -U $$POSTGRES_USER -d $$POSTGRES_DB -f /docker-entrypoint-initdb.d/init.sql
+      "
+
+  migrations: # goose мигратор
+    image: ghcr.io/kukymbr/goose-docker:3.26.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init-db:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    volumes:
+      - ./db/migrations:/migrations
+
+  server: 
+    build: .
+    command: /app/server
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init-db:
+        condition: service_completed_successfully
+      migrations:
+        condition: service_completed_successfully
+    env_file:
+      - .env

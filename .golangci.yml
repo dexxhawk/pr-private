@@ -1,0 +1,27 @@
+version: "2"
+
+formatters:
+  enable:
+    - goimports
+    - gofumpt
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - gocritic
+    - gocyclo
+
+  settings:
+    gocyclo:
+      min-complexity: 15
+    staticcheck:
+      checks:
+        - "all"
+        - "-SA1019"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
